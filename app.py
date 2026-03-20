@@ -284,8 +284,8 @@ def plot_strike_rate_scatter(stats_df: pd.DataFrame) -> go.Figure:
         font_color       = "#e0e0e0",
         title_font_color = CLR_GOLD,
         height           = 420,
-        coloraxis_colorbar = dict(title="Average", tickfont=dict(color="#e0e0e0"),
-                                  titlefont=dict(color="#e0e0e0")),
+       coloraxis_colorbar = dict(title="Average", tickfont=dict(color="#e0e0e0"),
+                          title_font=dict(color="#e0e0e0")),
     )
     fig.update_xaxes(gridcolor="#2a2a4e")
     fig.update_yaxes(gridcolor="#2a2a4e")
