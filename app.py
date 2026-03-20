@@ -130,6 +130,10 @@ def load_data(path: str) -> pd.DataFrame:
 
 
 def load_model(path: str):
+    if not os.path.exists("data/ipl_data.csv"):
+        import generate_data
+        generate_data.generate_dataset().to_csv("data/ipl_data.csv", index=False)
+    os.makedirs("models", exist_ok=True)
     if not os.path.exists(path):
         import train_model
         train_model.train()
