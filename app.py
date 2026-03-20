@@ -513,10 +513,7 @@ def main():
     # ── Load assets ───────────────────────────────────────────────────────────
     with st.spinner("Setting up data & model — this takes ~60s on first run …"):
         model = load_model(MODEL_PATH)
-        df    = pd.read_csv(DATA_PATH)
-        df["runs_off_bat"] = pd.to_numeric(df["runs_off_bat"], errors="coerce").fillna(0)
-        df["is_wicket"]    = pd.to_numeric(df["is_wicket"],    errors="coerce").fillna(0)
-        df["season"]       = pd.to_numeric(df["season"],       errors="coerce")
+        df    = load_data(DATA_PATH)
 
     if df.empty:
         st.error("❌ Dataset could not be loaded.")
