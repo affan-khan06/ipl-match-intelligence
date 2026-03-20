@@ -130,13 +130,23 @@ def load_data(path: str) -> pd.DataFrame:
 
 
 def load_model(path: str):
+    """Load model, generating data and training first if needed."""
+    # ── Step 1: ensure folders exist ─────────────────────────────────────────
+    os.makedirs("data",   exist_ok=True)
+    os.makedirs("models", exist_ok=True)
+
+    # ── Step 2: generate dataset if missing ──────────────────────────────────
     if not os.path.exists("data/ipl_data.csv"):
         import generate_data
-        generate_data.generate_dataset().to_csv("data/ipl_data.csv", index=False)
-    os.makedirs("models", exist_ok=True)
+        df = generate_data.generate_dataset()
+        df.to_csv("data/ipl_data.csv", index=False)
+
+    # ── Step 3: train model if missing ───────────────────────────────────────
     if not os.path.exists(path):
         import train_model
         train_model.train()
+
+    # ── Step 4: load and return model ────────────────────────────────────────
     with open(path, "rb") as f:
         return pickle.load(f)
 
@@ -187,7 +197,7 @@ def compute_player_stats(df: pd.DataFrame) -> pd.DataFrame:
     return stats.reset_index(drop=True)
 
 
-def plot_player_comparison(stats_df: pd.DataFrame, selected: list[str]) -> go.Figure:
+def plot_player_comparison(stats_df: pd.DataFrame, selected: list) -> go.Figure:
     """Radar / bar chart comparing selected players."""
     sub = stats_df[stats_df["batsman"].isin(selected)].copy()
     if sub.empty:
@@ -288,10 +298,10 @@ def plot_strike_rate_scatter(stats_df: pd.DataFrame) -> go.Figure:
 
 def generate_insights(runs_left: float, balls_left: float,
                       wickets_left: float, crr: float, rrr: float,
-                      win_prob: float) -> list[dict]:
+                      win_prob: float) -> list:
     """
     Rule-based insight engine.
-    Returns a list of dicts: {text, level}  where level ∈ {danger, warning, success, info}.
+    Returns a list of dicts: {text, level}  where level in {danger, warning, success, info}.
     """
     insights = []
 
@@ -403,7 +413,7 @@ def plot_win_gauge(win_prob: float, team_name: str = "Batting Team") -> go.Figur
 # PROBABILITY HISTORY CHART
 # ─────────────────────────────────────────────────────────────────────────────
 
-def plot_prob_history(history: list[tuple]) -> go.Figure:
+def plot_prob_history(history: list) -> go.Figure:
     """Line chart of win probability over simulated overs."""
     if len(history) < 2:
         return go.Figure()
@@ -447,7 +457,6 @@ def plot_team_win_rates(df: pd.DataFrame) -> go.Figure:
     if df2.empty:
         return go.Figure()
 
-    # Last ball of each match for each team
     summary = (
         df2.sort_values(["match_id", "over", "ball"])
            .groupby(["match_id", "batting_team"])
@@ -502,18 +511,15 @@ def main():
     """, unsafe_allow_html=True)
 
     # ── Load assets ───────────────────────────────────────────────────────────
-    with st.spinner("Loading data & model …"):
-        df    = load_data(DATA_PATH)
+    with st.spinner("Setting up data & model — this takes ~60s on first run …"):
         model = load_model(MODEL_PATH)
+        df    = load_data(DATA_PATH)
 
-    # Friendly error if setup not done
     if df.empty:
-        st.error("❌ Dataset not found. Run `python generate_data.py` first.")
-        st.code("python generate_data.py\npython train_model.py\nstreamlit run app.py")
+        st.error("❌ Dataset could not be loaded.")
         return
     if model is None:
-        st.error("❌ Model not found. Run `python train_model.py` first.")
-        st.code("python train_model.py")
+        st.error("❌ Model could not be loaded.")
         return
 
     player_stats = compute_player_stats(df)
@@ -573,7 +579,6 @@ def main():
         with col3:
             batting_team = st.text_input("Batting team", value="Mumbai Indians", key="wp_team")
 
-        # Derived
         runs_left    = max(0, target - scored)
         balls_left   = max(0, 120 - balls_b)
         wickets_left = 10 - wickets
@@ -603,7 +608,6 @@ def main():
                 with mcols[i % 2]:
                     st.metric(lbl, val)
 
-        # Insights for this state
         st.markdown("#### 💡 Live Insights")
         insights = generate_insights(runs_left, balls_left, wickets_left, crr, rrr, win_prob)
         ins_html = "".join(
@@ -653,7 +657,6 @@ def main():
                 p3.metric("Strike Rate",  f"{row['strike_rate']:.1f}")
                 p4.metric("Average",      f"{row['average']:.1f}")
 
-                # Season-wise breakdown for this player
                 pdata = df[df["batsman"] == selected_player]
                 season_runs = (
                     pdata.groupby("season")["runs_off_bat"].sum().reset_index()
@@ -676,7 +679,6 @@ def main():
             st.plotly_chart(plot_strike_rate_scatter(player_stats),
                             use_container_width=True, config={"displayModeBar": False})
 
-            # Compare players
             st.markdown("#### Player Comparison")
             compare_list = st.multiselect(
                 "Select 2–5 players to compare",
@@ -722,19 +724,18 @@ def main():
 
         for ins in insights:
             lvl_map = {
-                "danger":  ("🔴", "#3d1a1a", "#ff8080", "#E63946"),
-                "warning": ("🟡", "#3d2d0a", "#ffd080", "#F5A623"),
-                "success": ("🟢", "#0a2d1a", "#80ff80", "#2DC653"),
-                "info":    ("🔵", "#0a1a3d", "#a8dadc", "#A8DADC"),
+                "danger":  ("#3d1a1a", "#ff8080", "#E63946"),
+                "warning": ("#3d2d0a", "#ffd080", "#F5A623"),
+                "success": ("#0a2d1a", "#80ff80", "#2DC653"),
+                "info":    ("#0a1a3d", "#a8dadc", "#A8DADC"),
             }
-            _, bg, text_c, border_c = lvl_map.get(ins["level"], lvl_map["info"])
+            bg, text_c, border_c = lvl_map.get(ins["level"], lvl_map["info"])
             st.markdown(f"""
             <div style="background:{bg};border:1px solid {border_c};border-radius:10px;
                         padding:0.75rem 1.2rem;margin:0.4rem 0;color:{text_c};font-size:0.95rem;">
                 {ins["text"]}
             </div>""", unsafe_allow_html=True)
 
-        # Rule reference
         with st.expander("📖 Insight Rule Reference"):
             rules = [
                 ("Win Probability ≥ 80%",     "Strong favourites",               "success"),
@@ -761,7 +762,6 @@ def main():
         st.markdown('<div class="section-title">🧪 Interactive Match Simulator</div>', unsafe_allow_html=True)
         st.caption("Simulate different match states and watch how win probability evolves.")
 
-        # Initialise history in session state
         if "sim_history" not in st.session_state:
             st.session_state["sim_history"] = []
 
@@ -796,16 +796,14 @@ def main():
             st.plotly_chart(plot_win_gauge(sim_prob, sim_team),
                             use_container_width=True, config={"displayModeBar": False})
 
-            # Live state summary
             s1, s2, s3 = st.columns(3)
-            s1.metric("Runs left",   int(sim_runs_left))
-            s2.metric("Balls left",  int(sim_balls_left))
-            s3.metric("Wickets left",int(sim_wkt_left))
+            s1.metric("Runs left",    int(sim_runs_left))
+            s2.metric("Balls left",   int(sim_balls_left))
+            s3.metric("Wickets left", int(sim_wkt_left))
             s4, s5, _ = st.columns(3)
             s4.metric("Current RR",  f"{sim_crr:.2f}")
             s5.metric("Required RR", f"{sim_rrr:.2f}")
 
-        # Probability history chart
         if st.session_state["sim_history"]:
             st.markdown("---")
             st.markdown("#### 📈 Win Probability History")
@@ -814,7 +812,6 @@ def main():
                 use_container_width=True,
                 config={"displayModeBar": False},
             )
-
             hist_df = pd.DataFrame(
                 st.session_state["sim_history"],
                 columns=["Over", "Win Probability"],
@@ -824,12 +821,11 @@ def main():
         else:
             st.info("💡 Adjust the match state above and click **Add to Simulation History** to track how win probability changes over the course of the match.")
 
-        # Insights for current simulator state
         st.markdown("---")
         st.markdown("#### 💡 Current Situation Insights")
         sim_insights = generate_insights(sim_runs_left, sim_balls_left, sim_wkt_left,
                                           sim_crr, sim_rrr, sim_prob)
-        for ins in sim_insights[:4]:   # top 4 most relevant
+        for ins in sim_insights[:4]:
             lvl_map = {"danger": "#E63946", "warning": "#F5A623",
                        "success": "#2DC653", "info": "#A8DADC"}
             border_c = lvl_map.get(ins["level"], "#A8DADC")
