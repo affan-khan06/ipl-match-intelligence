@@ -129,11 +129,10 @@ def load_data(path: str) -> pd.DataFrame:
     return df
 
 
-@st.cache_resource(show_spinner=False)
 def load_model(path: str):
-    """Load the trained sklearn Pipeline from disk."""
     if not os.path.exists(path):
-        return None
+        import train_model
+        train_model.train()
     with open(path, "rb") as f:
         return pickle.load(f)
 
